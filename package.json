@@ -1,0 +1,47 @@
+{
+  "name": "homework-manager",
+  "version": "1.0.0",
+  "description": "학원/개인 교습자를 위한 숙제 관리 앱",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "cap:add": "cap add",
+    "cap:copy": "cap copy",
+    "cap:sync": "cap sync",
+    "cap:open:android": "cap open android",
+    "cap:build:android": "cap build android"
+  },
+  "dependencies": {
+    "@capacitor-community/sqlite": "^5.0.0",
+    "@capacitor/android": "^5.7.8",
+    "@capacitor/core": "^5.0.0",
+    "@capacitor/ios": "^5.0.0",
+    "@headlessui/react": "^1.7.13",
+    "@heroicons/react": "^2.0.16",
+    "date-fns": "^2.29.3",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.8.1",
+    "recharts": "^2.5.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.0.27",
+    "@types/react-dom": "^18.0.10",
+    "@vitejs/plugin-react": "^3.1.0",
+    "autoprefixer": "^10.4.13",
+    "postcss": "^8.4.21",
+    "tailwindcss": "^3.2.4",
+    "typescript": "^4.9.4",
+    "vite": "^4.1.0"
+  },
+  "keywords": [
+    "homework",
+    "education",
+    "capacitor",
+    "react"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
+}
