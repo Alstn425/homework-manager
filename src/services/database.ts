@@ -91,19 +91,16 @@ class DatabaseService {
     );
     
     if (classResult.values && classResult.values[0].count === 0) {
+      // 반 1개만 추가
       await this.db.execute(`
         INSERT INTO classes (name, description) VALUES 
-        ('수학 A반', '중학교 1학년 수학'),
-        ('영어 B반', '고등학교 2학년 영어')
+        ('한국고 3학년', '영어, 내신 및 수능 최저')
       `);
 
-      // 샘플 학생 추가
+      // 학생 1명만 추가
       await this.db.execute(`
         INSERT INTO students (class_id, name, grade, phone) VALUES 
-        (1, '김철수', '중1', '010-1234-5678'),
-        (1, '이영희', '중1', '010-2345-6789'),
-        (2, '박민수', '고2', '010-3456-7890'),
-        (2, '정수진', '고2', '010-4567-8901')
+        (1, '홍길동', '중1', '010-1234-5678')
       `);
     }
   }
@@ -253,6 +250,29 @@ class DatabaseService {
     return null;
   }
 
+  // 특정 반과 날짜에 대한 숙제 기록 일괄 조회 (성능 개선용)
+  async getHomeworkRecordsByClassAndDate(classId: number, date: string): Promise<HomeworkRecord[]> {
+    if (!this.db) throw new Error('데이터베이스가 초기화되지 않았습니다.');
+
+    const result = await this.db.query(
+      `SELECT hr.* FROM students s
+       LEFT JOIN homework_records hr ON s.id = hr.student_id AND hr.date = ?
+       WHERE s.class_id = ? AND hr.id IS NOT NULL
+       ORDER BY hr.student_id ASC`,
+      [date, classId]
+    );
+
+    return (result.values || []).map(row => ({
+      id: row.id,
+      studentId: row.student_id,
+      date: row.date,
+      status: row.status as HomeworkStatus,
+      note: row.note,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    }));
+  }
+
   // 통계 관련 메서드
   async getMonthlyStats(year: number, month: number): Promise<any[]> {
     if (!this.db) throw new Error('데이터베이스가 초기화되지 않았습니다.');
@@ -262,20 +282,83 @@ class DatabaseService {
     
     const result = await this.db.query(`
       SELECT 
-        s.class_id,
-        c.name as class_name,
-        COUNT(*) as total_records,
-        SUM(CASE WHEN hr.status = 'done' THEN 1 ELSE 0 END) as done_count,
-        SUM(CASE WHEN hr.status = 'partial' THEN 1 ELSE 0 END) as partial_count,
-        SUM(CASE WHEN hr.status = 'not_done' THEN 1 ELSE 0 END) as not_done_count,
-        SUM(CASE WHEN hr.status = 'absent' THEN 1 ELSE 0 END) as absent_count
+        s.class_id AS classId,
+        c.name AS className,
+        SUM(CASE WHEN hr.status = 'done' THEN 1 ELSE 0 END) AS done,
+        SUM(CASE WHEN hr.status = 'partial' THEN 1 ELSE 0 END) AS partial,
+        SUM(CASE WHEN hr.status = 'not_done' THEN 1 ELSE 0 END) AS notDone,
+        SUM(CASE WHEN hr.status = 'absent' THEN 1 ELSE 0 END) AS absent
       FROM students s
       LEFT JOIN classes c ON s.class_id = c.id
       LEFT JOIN homework_records hr ON s.id = hr.student_id AND hr.date BETWEEN ? AND ?
       GROUP BY s.class_id, c.name
     `, [startDate, endDate]);
-    
-    return result.values || [];
+
+    const mapped = (result.values || []).map((row: any) => {
+      const done = Number(row.done) || 0;
+      const partial = Number(row.partial) || 0;
+      const notDone = Number(row.notDone) || 0;
+      const absent = Number(row.absent) || 0;
+      const total = done + partial + notDone + absent;
+      return {
+        classId: row.classId,
+        className: row.className,
+        done,
+        partial,
+        notDone,
+        absent,
+        total,
+      };
+    });
+
+    return mapped;
+  }
+
+  async getStudentStats(year: number, month: number): Promise<any[]> {
+    if (!this.db) throw new Error('데이터베이스가 초기화되지 않았습니다.');
+
+    const startDate = `${year}-${month.toString().padStart(2, '0')}-01`;
+    const endDate = `${year}-${month.toString().padStart(2, '0')}-31`;
+
+    const result = await this.db.query(`
+      SELECT 
+        s.id AS studentId,
+        s.name AS studentName,
+        c.name AS className,
+        SUM(CASE WHEN hr.status = 'done' THEN 1 ELSE 0 END) AS done,
+        SUM(CASE WHEN hr.status = 'partial' THEN 1 ELSE 0 END) AS partial,
+        SUM(CASE WHEN hr.status = 'not_done' THEN 1 ELSE 0 END) AS notDone,
+        SUM(CASE WHEN hr.status = 'absent' THEN 1 ELSE 0 END) AS absent
+      FROM students s
+      LEFT JOIN classes c ON s.class_id = c.id
+      LEFT JOIN homework_records hr ON s.id = hr.student_id AND hr.date BETWEEN ? AND ?
+      GROUP BY s.id, s.name, c.name
+    `, [startDate, endDate]);
+
+    const mapped = (result.values || []).map((row: any) => {
+      const done = Number(row.done) || 0;
+      const partial = Number(row.partial) || 0;
+      const notDone = Number(row.notDone) || 0;
+      const absent = Number(row.absent) || 0;
+      const total = done + partial + notDone + absent;
+      const completed = done + partial * 0.5;
+      const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0;
+      return {
+        studentId: row.studentId,
+        studentName: row.studentName,
+        className: row.className,
+        done,
+        partial,
+        notDone,
+        absent,
+        total,
+        completionRate,
+      };
+    });
+
+    // 낮은 순으로 정렬 (메모리 구현과 동일 동작)
+    mapped.sort((a, b) => a.completionRate - b.completionRate);
+    return mapped;
   }
 
   async close(): Promise<void> {

@@ -19,7 +19,15 @@ const HomeworkCheck: React.FC = () => {
   const [classes, setClasses] = useState<Class[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [selectedClass, setSelectedClass] = useState<number | null>(null);
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  // 로컬 타임존 안전한 yyyy-mm-dd 생성
+  const getTodayLocal = () => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+  const [selectedDate, setSelectedDate] = useState(getTodayLocal());
   const [homeworkRecords, setHomeworkRecords] = useState<Map<number, HomeworkRecord>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
   const [currentStudentIndex, setCurrentStudentIndex] = useState(0);
@@ -121,29 +129,34 @@ const HomeworkCheck: React.FC = () => {
       
       console.log('loadHomeworkRecords - 환경 감지:', { isWeb, hostname: window.location.hostname });
       
-      const records = new Map<number, HomeworkRecord>();
-      
-      for (const student of students) {
-        const record = await service.getHomeworkRecord(student.id, selectedDate);
-        if (record) {
-          records.set(student.id, record);
+      // 서비스에 일괄 조회가 있으면 사용, 없으면 개별 조회
+      const batchAvailable = typeof (service as any).getHomeworkRecordsByClassAndDate === 'function';
+      if (batchAvailable && selectedClass) {
+        const list: HomeworkRecord[] = await (service as any).getHomeworkRecordsByClassAndDate(selectedClass, selectedDate);
+        const map = new Map<number, HomeworkRecord>();
+        list.forEach(r => map.set(r.studentId, r));
+        setHomeworkRecords(map);
+      } else {
+        const records = new Map<number, HomeworkRecord>();
+        for (const student of students) {
+          const record = await service.getHomeworkRecord(student.id, selectedDate);
+          if (record) {
+            records.set(student.id, record);
+          }
         }
+        setHomeworkRecords(records);
       }
-      
-      setHomeworkRecords(records);
     } catch (error) {
       console.error('숙제 기록 로드 실패:', error);
       // 오류 발생 시 메모리 저장소 사용
       try {
         const records = new Map<number, HomeworkRecord>();
-        
         for (const student of students) {
           const record = await memoryStorageService.getHomeworkRecord(student.id, selectedDate);
           if (record) {
             records.set(student.id, record);
           }
         }
-        
         setHomeworkRecords(records);
       } catch (fallbackError) {
         console.error('폴백 데이터 로드도 실패:', fallbackError);

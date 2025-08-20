@@ -61,11 +61,9 @@ class MemoryStorageService {
   }
 
   private insertSampleData() {
-    // 샘플 반 데이터
+    // 샘플 반 데이터 (1개만)
     const sampleClasses = [
-      { id: 1, name: '수학 A반', description: '중학교 1학년 수학', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-      { id: 2, name: '영어 B반', description: '고등학교 2학년 영어', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-      { id: 3, name: '과학 C반', description: '중학교 2학년 과학', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
+      { id: 1, name: '수학 A반', description: '중학교 1학년 수학', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
     ];
 
     sampleClasses.forEach(cls => {
@@ -73,13 +71,9 @@ class MemoryStorageService {
       this.nextClassId = Math.max(this.nextClassId, cls.id + 1);
     });
 
-    // 샘플 학생 데이터
+    // 샘플 학생 데이터 (1명만)
     const sampleStudents = [
-      { id: 1, classId: 1, name: '김철수', grade: '중1', phone: '010-1234-5678', parentPhone: '010-8765-4321', note: '수학에 관심이 많음', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-      { id: 2, classId: 1, name: '이영희', grade: '중1', phone: '010-2345-6789', parentPhone: '010-9876-5432', note: '성실함', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-      { id: 3, classId: 2, name: '박민수', grade: '고2', phone: '010-3456-7890', parentPhone: '010-0987-6543', note: '영어 실력 향상 중', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-      { id: 4, classId: 2, name: '정수진', grade: '고2', phone: '010-4567-8901', parentPhone: '010-1098-7654', note: '문법에 강함', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-      { id: 5, classId: 3, name: '최동현', grade: '중2', phone: '010-5678-9012', parentPhone: '010-2109-8765', note: '실험을 좋아함', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
+      { id: 1, classId: 1, name: '김철수', grade: '중1', phone: '010-1234-5678', parentPhone: '010-8765-4321', note: '수학에 관심이 많음', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
     ];
 
     sampleStudents.forEach(student => {
@@ -87,29 +81,25 @@ class MemoryStorageService {
       this.nextStudentId = Math.max(this.nextStudentId, student.id + 1);
     });
 
-    // 샘플 숙제 기록 데이터 (최근 30일)
+    // 샘플 숙제 기록 데이터 (최근 30일, 김철수만)
     const today = new Date();
     for (let i = 0; i < 30; i++) {
       const date = new Date(today);
       date.setDate(date.getDate() - i);
       const dateStr = date.toISOString().split('T')[0];
       
-      sampleStudents.forEach(student => {
-        const statuses: HomeworkStatus[] = ['done', 'partial', 'not_done', 'absent'];
-        const randomStatus = statuses[Math.floor(Math.random() * statuses.length)];
-        
-        const record: HomeworkRecord = {
-          id: this.nextRecordId++,
-          studentId: student.id,
-          date: dateStr,
-          status: randomStatus,
-          note: '',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        };
-        
-        this.homeworkRecords.set(record.id, record);
-      });
+      const statuses: HomeworkStatus[] = ['done', 'partial', 'not_done', 'absent'];
+      const randomStatus = statuses[Math.floor(Math.random() * statuses.length)];
+      const record: HomeworkRecord = {
+        id: this.nextRecordId++,
+        studentId: 1,
+        date: dateStr,
+        status: randomStatus,
+        note: '',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      this.homeworkRecords.set(record.id, record);
     }
   }
 
@@ -388,6 +378,14 @@ class MemoryStorageService {
     });
 
     return Array.from(studentStats.values()).sort((a, b) => a.completionRate - b.completionRate); // 낮은 순으로 정렬
+  }
+
+  // 특정 반과 날짜에 대한 숙제 기록 일괄 조회 (성능 개선용)
+  async getHomeworkRecordsByClassAndDate(classId: number, date: string): Promise<HomeworkRecord[]> {
+    const studentsInClass = Array.from(this.students.values()).filter(s => s.classId === classId).map(s => s.id);
+    return Array.from(this.homeworkRecords.values())
+      .filter(r => r.date === date && studentsInClass.includes(r.studentId))
+      .sort((a, b) => a.studentId - b.studentId);
   }
 
   async close(): Promise<void> {

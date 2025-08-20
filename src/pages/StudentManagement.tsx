@@ -40,12 +40,10 @@ const StudentManagement: React.FC = () => {
       
       console.log('StudentManagement loadData - 환경 감지:', { isWeb, hostname: window.location.hostname });
       
-      const [allClasses, allStudents] = await Promise.all([
-        service.getClasses(),
-        Promise.all((await service.getClasses()).map(cls => 
-          service.getStudentsByClass(cls.id)
-        )).then(results => results.flat())
-      ]);
+      const allClasses = await service.getClasses();
+      const allStudents = (await Promise.all(
+        allClasses.map(cls => service.getStudentsByClass(cls.id))
+      )).flat();
       
       setClasses(allClasses);
       setStudents(allStudents);
@@ -53,12 +51,10 @@ const StudentManagement: React.FC = () => {
       console.error('데이터 로드 실패:', error);
       // 오류 발생 시 메모리 저장소 사용
       try {
-        const [allClasses, allStudents] = await Promise.all([
-          memoryStorageService.getClasses(),
-          Promise.all((await memoryStorageService.getClasses()).map(cls => 
-            memoryStorageService.getStudentsByClass(cls.id)
-          )).then(results => results.flat())
-        ]);
+        const allClasses = await memoryStorageService.getClasses();
+        const allStudents = (await Promise.all(
+          allClasses.map(cls => memoryStorageService.getStudentsByClass(cls.id))
+        )).flat();
         setClasses(allClasses);
         setStudents(allStudents);
       } catch (fallbackError) {

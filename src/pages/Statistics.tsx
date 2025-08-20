@@ -17,7 +17,7 @@ import { Class, Student } from '../types/database';
 const Statistics: React.FC = () => {
   const [classes, setClasses] = useState<Class[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
-  const [selectedClass, setSelectedClass] = useState<number | 'all'>('all');
+  const [selectedClass, setSelectedClass] = useState<number | 'all' | null>(null);
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
   const [monthlyStats, setMonthlyStats] = useState<any[]>([]);
   const [studentStats, setStudentStats] = useState<any[]>([]);
@@ -43,12 +43,10 @@ const Statistics: React.FC = () => {
       
       console.log('Statistics loadData - 환경 감지:', { isWeb, hostname: window.location.hostname });
       
-      const [allClasses, allStudents] = await Promise.all([
-        service.getClasses(),
-        Promise.all((await service.getClasses()).map(cls => 
-          service.getStudentsByClass(cls.id)
-        )).then(results => results.flat())
-      ]);
+      const allClasses = await service.getClasses();
+      const allStudents = (await Promise.all(
+        allClasses.map(cls => service.getStudentsByClass(cls.id))
+      )).flat();
       
       setClasses(allClasses);
       setStudents(allStudents);
@@ -56,12 +54,10 @@ const Statistics: React.FC = () => {
       console.error('데이터 로드 실패:', error);
       // 오류 발생 시 메모리 저장소 사용
       try {
-        const [allClasses, allStudents] = await Promise.all([
-          memoryStorageService.getClasses(),
-          Promise.all((await memoryStorageService.getClasses()).map(cls => 
-            memoryStorageService.getStudentsByClass(cls.id)
-          )).then(results => results.flat())
-        ]);
+        const allClasses = await memoryStorageService.getClasses();
+        const allStudents = (await Promise.all(
+          allClasses.map(cls => memoryStorageService.getStudentsByClass(cls.id))
+        )).flat();
         setClasses(allClasses);
         setStudents(allStudents);
       } catch (fallbackError) {
@@ -74,6 +70,10 @@ const Statistics: React.FC = () => {
 
   const loadMonthlyStats = async () => {
     try {
+      if (selectedClass === null) {
+        setMonthlyStats([]);
+        return;
+      }
       const [year, month] = selectedMonth.split('-').map(Number);
       // 공통 유틸 사용
       const isWeb = isWebPlatform();
@@ -82,26 +82,21 @@ const Statistics: React.FC = () => {
       console.log('Statistics loadMonthlyStats - 환경 감지:', { isWeb, hostname: window.location.hostname });
       
       const stats = await service.getMonthlyStats(year, month);
-      
       // 선택된 반에 따라 필터링
-      let filteredStats = stats;
-      if (selectedClass !== 'all') {
-        filteredStats = stats.filter(stat => stat.classId === selectedClass);
-      }
-      
+      const filteredStats = selectedClass === 'all'
+        ? stats
+        : stats.filter((stat: any) => stat.classId === selectedClass);
       setMonthlyStats(filteredStats);
     } catch (error) {
       console.error('월별 통계 로드 실패:', error);
       // 오류 발생 시 메모리 저장소 사용
       try {
         const [year, month] = selectedMonth.split('-').map(Number);
+        if (selectedClass === null) { setMonthlyStats([]); return; }
         const stats = await memoryStorageService.getMonthlyStats(year, month);
-        
-        let filteredStats = stats;
-        if (selectedClass !== 'all') {
-          filteredStats = stats.filter(stat => stat.classId === selectedClass);
-        }
-        
+        const filteredStats = selectedClass === 'all'
+          ? stats
+          : stats.filter((stat: any) => stat.classId === selectedClass);
         setMonthlyStats(filteredStats);
       } catch (fallbackError) {
         console.error('폴백 통계 로드도 실패:', fallbackError);
@@ -111,6 +106,10 @@ const Statistics: React.FC = () => {
 
   const loadStudentStats = async () => {
     try {
+      if (selectedClass === null) {
+        setStudentStats([]);
+        return;
+      }
       const [year, month] = selectedMonth.split('-').map(Number);
       // 공통 유틸 사용
       const isWeb = isWebPlatform();
@@ -135,6 +134,7 @@ const Statistics: React.FC = () => {
       // 오류 발생 시 메모리 저장소 사용
       try {
         const [year, month] = selectedMonth.split('-').map(Number);
+        if (selectedClass === null) { setStudentStats([]); return; }
         const stats = await memoryStorageService.getStudentStats(year, month);
         
         let filteredStats = stats;
@@ -153,14 +153,10 @@ const Statistics: React.FC = () => {
   };
 
   const getCompletionRate = (stats: any) => {
-    if (stats.total === 0) return 0;
+    if (!stats || !stats.total) return 0;
     return Math.round((stats.done / stats.total) * 100);
   };
 
-  const getStudentCompletionRate = (stats: any) => {
-    if (stats.total === 0) return 0;
-    return stats.completionRate;
-  };
 
   const getTotalStats = () => {
     if (monthlyStats.length === 0) return null;
@@ -216,10 +212,17 @@ const Statistics: React.FC = () => {
               반 선택
             </label>
             <select
-              value={selectedClass}
-              onChange={(e) => setSelectedClass(e.target.value === 'all' ? 'all' : parseInt(e.target.value))}
+              value={selectedClass ?? ''}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === '') return setSelectedClass(null);
+                if (val === 'all') return setSelectedClass('all');
+                const parsed = parseInt(val, 10);
+                setSelectedClass(Number.isNaN(parsed) ? null : parsed);
+              }}
               className="input-field"
             >
+              <option value="" disabled>반 선택</option>
               <option value="all">전체 반</option>
               {classes.map(cls => (
                 <option key={cls.id} value={cls.id}>{cls.name}</option>
@@ -351,8 +354,8 @@ const Statistics: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {monthlyStats.map((stat) => (
-                  <tr key={stat.class_id} className="hover:bg-gray-50">
+                {monthlyStats.map((stat: any) => (
+                  <tr key={stat.classId} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <AcademicCapIcon className="h-5 w-5 text-primary-500 mr-2" />

@@ -1,13 +1,17 @@
-export const isWebPlatform = (): boolean => {
-  if (typeof window === 'undefined') return false;
-  const isCapacitorPresent = (window as any).Capacitor !== undefined;
-  const host = window.location?.hostname || '';
-  // 개발 서버(Localhost)에서는 항상 웹로 처리
-  if (host === 'localhost' || host === '127.0.0.1') return true;
-  // Capacitor 객체가 없으면 웹
-  return !isCapacitorPresent;
+import { Capacitor } from '@capacitor/core';
+
+export const isNativePlatform = (): boolean => {
+  try {
+    // Capacitor가 제공하는 플랫폼 식별 사용: 'web' | 'android' | 'ios'
+    return Capacitor.getPlatform() !== 'web';
+  } catch (_e) {
+    // 폴백: Capacitor 글로벌 존재 여부로 판단
+    if (typeof window === 'undefined') return false;
+    const isCapacitorPresent = (window as any).Capacitor !== undefined;
+    return isCapacitorPresent;
+  }
 };
 
-export const isNativePlatform = (): boolean => !isWebPlatform();
+export const isWebPlatform = (): boolean => !isNativePlatform();
 
 
