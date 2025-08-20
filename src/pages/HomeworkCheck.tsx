@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { 
   AcademicCapIcon, 
@@ -23,6 +23,7 @@ const HomeworkCheck: React.FC = () => {
   const [homeworkRecords, setHomeworkRecords] = useState<Map<number, HomeworkRecord>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
   const [currentStudentIndex, setCurrentStudentIndex] = useState(0);
+  const evaluatorRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     loadClasses();
@@ -39,6 +40,18 @@ const HomeworkCheck: React.FC = () => {
       loadHomeworkRecords();
     }
   }, [selectedClass, students, selectedDate]);
+
+  // 학생 선택 시 평가 영역으로 스크롤
+  useEffect(() => {
+    if (evaluatorRef.current) {
+      try {
+        evaluatorRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } catch (e) {
+        // 일부 WebView에서 smooth가 지원되지 않을 수 있음
+        evaluatorRef.current.scrollIntoView();
+      }
+    }
+  }, [currentStudentIndex]);
 
   // URL 파라미터에서 반 ID 가져오기
   useEffect(() => {
@@ -295,7 +308,7 @@ const HomeworkCheck: React.FC = () => {
 
       {/* 현재 학생 숙제 확인 */}
       {getCurrentStudent() && (
-        <div className="card mb-8 bg-gradient-to-r from-primary-50 to-primary-100 border-primary-200">
+        <div ref={evaluatorRef} className="card mb-8 bg-gradient-to-r from-primary-50 to-primary-100 border-primary-200">
           <div className="text-center">
             <h2 className="text-2xl font-bold text-primary-900 mb-4">
               {getCurrentStudent()?.name} 학생 숙제 확인
@@ -347,9 +360,6 @@ const HomeworkCheck: React.FC = () => {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     숙제 상태
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    작업
-                  </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -360,7 +370,8 @@ const HomeworkCheck: React.FC = () => {
                   return (
                     <tr 
                       key={student.id} 
-                      className={`hover:bg-gray-50 ${index === currentStudentIndex ? 'bg-primary-50' : ''}`}
+                      onClick={() => setCurrentStudentIndex(index)}
+                      className={`cursor-pointer hover:bg-gray-50 ${index === currentStudentIndex ? 'bg-primary-50' : ''}`}
                     >
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
@@ -385,14 +396,6 @@ const HomeworkCheck: React.FC = () => {
                         ) : (
                           <span className="text-gray-400">미기록</span>
                         )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <button
-                          onClick={() => setCurrentStudentIndex(index)}
-                          className="text-primary-600 hover:text-primary-900"
-                        >
-                          선택
-                        </button>
                       </td>
                     </tr>
                   );
